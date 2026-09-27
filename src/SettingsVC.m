@@ -352,10 +352,40 @@ extern NSString *g_commitHash;
 
 #pragma mark - Table View Delegate
 
+- (void)editGDBundleIdentifier {
+	UIAlertController* alert = [UIAlertController alertControllerWithTitle:@"general.gd-bundle-id".loc message:@"general.gd-bundle-id.message".loc preferredStyle:UIAlertControllerStyleAlert];
+	[alert addTextFieldWithConfigurationHandler:^(UITextField* field) {
+		field.text = [Utils gdBundleIdentifier];
+		field.placeholder = @"com.robtop.geometryjump";
+		field.autocapitalizationType = UITextAutocapitalizationTypeNone;
+		field.autocorrectionType = UITextAutocorrectionTypeNo;
+		field.spellCheckingType = UITextSpellCheckingTypeNo;
+		field.keyboardType = UIKeyboardTypeASCIICapable;
+		field.clearButtonMode = UITextFieldViewModeWhileEditing;
+	}];
+	UIAlertAction* save = [UIAlertAction actionWithTitle:@"common.ok".loc style:UIAlertActionStyleDefault handler:^(UIAlertAction* action) {
+		if (![Utils setGDBundleIdentifier:alert.textFields.firstObject.text]) {
+			[Utils showError:self title:@"general.gd-bundle-id.invalid".loc error:nil];
+			return;
+		}
+		[self.tableView reloadData];
+		[self.root updateState];
+	}];
+	[alert addAction:save];
+	[alert addAction:[UIAlertAction actionWithTitle:@"common.cancel".loc style:UIAlertActionStyleCancel handler:nil]];
+	[self presentViewController:alert animated:YES completion:nil];
+}
+
 - (void)createSettings {
 	NSFileManager* fm = [NSFileManager defaultManager];
 	NSURL* bundlePath = [[LCPath bundlePath] URLByAppendingPathComponent:[Utils gdBundleName]];
 	NSArray<Setting*>* general = @[
+		[Setting simpleCreate:@"general.gd-bundle-id".loc type:SettingTypeCustomVal1 action:^{
+			[self editGDBundleIdentifier];
+		} custom:^(UITableViewCell* cell) {
+			cell.detailTextLabel.text = [Utils gdBundleIdentifier];
+			cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+		}],
 		[Setting simpleCreate:@"general.accent-color".loc type:SettingTypeCustom action:^{
 			MSColorSelectionViewController* colorSelectionController = [[MSColorSelectionViewController alloc] init];
 			UINavigationController* navCtrl = [[UINavigationController alloc] initWithRootViewController:colorSelectionController];

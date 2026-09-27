@@ -31,8 +31,28 @@ extern SecTaskRef SecTaskCreateFromSelf(CFAllocatorRef allocator) __attribute__(
 	return @"com.geode.launcher";
 }
 + (NSString*)gdBundleName {
+	// Internal downloaded game directory, independent of the installed app ID.
 	return @"com.robtop.geometryjump.app";
 	// return @"GeometryDash";
+}
++ (NSString*)gdBundleIdentifier {
+	NSString* identifier = [[Utils getPrefs] stringForKey:@"GD_BUNDLE_IDENTIFIER"];
+	return identifier.length ? identifier : @"com.robtop.geometryjump";
+}
++ (BOOL)setGDBundleIdentifier:(NSString*)bundleIdentifier {
+	NSString* identifier = [bundleIdentifier stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+	if (!identifier.length) identifier = @"com.robtop.geometryjump";
+	NSPredicate* validIdentifier = [NSPredicate predicateWithFormat:@"SELF MATCHES %@", @"[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)+"];
+	if (![validIdentifier evaluateWithObject:identifier]) return NO;
+	if (![identifier isEqualToString:[Utils gdBundleIdentifier]]) {
+		NSUserDefaults* prefs = [Utils getPrefs];
+		[prefs setObject:identifier forKey:@"GD_BUNDLE_IDENTIFIER"];
+		[prefs setBool:NO forKey:@"GDVerified"];
+		gdBundlePath = nil;
+		gdDocPath = nil;
+		cachedVersion = nil;
+	}
+	return YES;
 }
 + (BOOL)isJailbroken {
 	return [[NSFileManager defaultManager] fileExistsAtPath:@"/var/jb"] || access("/var/mobile", R_OK) == 0;
@@ -332,8 +352,8 @@ extern SecTaskRef SecTaskCreateFromSelf(CFAllocatorRef allocator) __attribute__(
 	}
 	// probably the most inefficient way of getting a bundle id, i need to figure out another way of doing this because this is just bad...
 	for (NSString* dir in dirs) {
-		NSString* checkPrefsA = [NSString stringWithFormat:@"/var/mobile/Containers/Data/Application/%@/Library/HTTPStorages/com.robtop.geometryjump", dir];
-		NSString* checkPrefsB = [NSString stringWithFormat:@"/var/mobile/Containers/Data/Application/%@/tmp/com.robtop.geometryjump-Inbox", dir];
+		NSString* checkPrefsA = [NSString stringWithFormat:@"/var/mobile/Containers/Data/Application/%@/Library/HTTPStorages/%@", dir, [Utils gdBundleIdentifier]];
+		NSString* checkPrefsB = [NSString stringWithFormat:@"/var/mobile/Containers/Data/Application/%@/tmp/%@-Inbox", dir, [Utils gdBundleIdentifier]];
 		NSString* checkPrefsC = [NSString stringWithFormat:@"/var/mobile/Containers/Data/Application/%@/.com.apple.mobile_container_manager.metadata.plist", dir];
 		if ([fm fileExistsAtPath:checkPrefsA isDirectory:nil] || [fm fileExistsAtPath:checkPrefsB isDirectory:nil]) {
 			gdDocPath = [NSString stringWithFormat:@"/var/mobile/Containers/Data/Application/%@/", dir];
@@ -341,7 +361,7 @@ extern SecTaskRef SecTaskCreateFromSelf(CFAllocatorRef allocator) __attribute__(
 		} else if ([fm fileExistsAtPath:checkPrefsC isDirectory:nil]) {
 			NSDictionary* plist = [NSDictionary dictionaryWithContentsOfFile:checkPrefsC];
 			if (plist) {
-				if (plist[@"MCMMetadataIdentifier"] && [plist[@"MCMMetadataIdentifier"] isEqualToString:@"com.robtop.geometryjump"]) {
+				if ([plist[@"MCMMetadataIdentifier"] isEqualToString:[Utils gdBundleIdentifier]]) {
 					gdDocPath = [NSString stringWithFormat:@"/var/mobile/Containers/Data/Application/%@/", dir];
 					return gdDocPath;
 				}
@@ -363,7 +383,8 @@ extern SecTaskRef SecTaskCreateFromSelf(CFAllocatorRef allocator) __attribute__(
 	// probably the most inefficient way of getting a bundle id, i need to figure out another way of doing this because this is just bad...
 	for (NSString* dir in dirs) {
 		NSString* checkPrefs = [NSString stringWithFormat:@"/var/containers/Bundle/Application/%@/GeometryJump.app", dir];
-		if ([fm fileExistsAtPath:checkPrefs isDirectory:nil]) {
+		NSDictionary* info = [NSDictionary dictionaryWithContentsOfFile:[checkPrefs stringByAppendingPathComponent:@"Info.plist"]];
+		if ([info[@"CFBundleIdentifier"] isEqualToString:[Utils gdBundleIdentifier]]) {
 			return [NSString stringWithFormat:@"/var/containers/Bundle/Application/%@/GeometryJump.app/GeometryJump", dir];
 		}
 	}
@@ -384,7 +405,8 @@ extern SecTaskRef SecTaskCreateFromSelf(CFAllocatorRef allocator) __attribute__(
 	// probably the most inefficient way of getting a bundle id, i need to figure out another way of doing this because this is just bad...
 	for (NSString* dir in dirs) {
 		NSString* checkPrefs = [NSString stringWithFormat:@"/var/containers/Bundle/Application/%@/GeometryJump.app", dir];
-		if ([fm fileExistsAtPath:checkPrefs isDirectory:nil]) {
+		NSDictionary* info = [NSDictionary dictionaryWithContentsOfFile:[checkPrefs stringByAppendingPathComponent:@"Info.plist"]];
+		if ([info[@"CFBundleIdentifier"] isEqualToString:[Utils gdBundleIdentifier]]) {
 			gdBundlePath = [NSString stringWithFormat:@"/var/containers/Bundle/Application/%@/", dir];
 			return gdBundlePath;
 		}
@@ -567,7 +589,7 @@ extern SecTaskRef SecTaskCreateFromSelf(CFAllocatorRef allocator) __attribute__(
 		[fm createFileAtPath:geode_env contents:[safeModeEnv dataUsingEncoding:NSUTF8StringEncoding] attributes:@{}];
 	}
 
-	[[LSApplicationWorkspace defaultWorkspace] openApplicationWithBundleID:@"com.robtop.geometryjump"];
+	[[LSApplicationWorkspace defaultWorkspace] openApplicationWithBundleID:[Utils gdBundleIdentifier]];
 }
 
 + (NSString*)colorToHex:(UIColor*)color {

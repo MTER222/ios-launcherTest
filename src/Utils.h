@@ -7,6 +7,8 @@
 @end
 
 @interface Utils : NSObject
++ (NSString*)gdBundleIdentifier;
++ (BOOL)setGDBundleIdentifier:(NSString*)bundleIdentifier;
 + (NSString*)gdBundleName;
 + (NSString*)launcherBundleName;
 + (NSString*)getGeodeVersion;

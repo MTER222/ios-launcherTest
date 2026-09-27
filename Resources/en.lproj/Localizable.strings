@@ -1,4 +1,7 @@
 // Common
+"general.gd-bundle-id" = "Geometry Dash Bundle ID";
+"general.gd-bundle-id.message" = "Enter the Bundle ID of your installed Geometry Dash app (for example, com.gd.test). Geode uses this ID to open the app for verification. Leave empty to restore com.robtop.geometryjump. This does not import the external app into LiveContainer.";
+"general.gd-bundle-id.invalid" = "Enter a Bundle ID using letters, numbers, hyphens and dots, for example com.gd.test. Empty components and spaces are not allowed.";
 "common.yes" = "Yes";
 "common.no" = "No";
 "common.ok" = "OK";

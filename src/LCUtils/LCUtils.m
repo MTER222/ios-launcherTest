@@ -70,7 +70,7 @@ Class LCSharedUtilsClass = nil;
 	if ([[Utils getPrefs] boolForKey:@"MANUAL_REOPEN"])
 		return NO;
 	if (![Utils isSandboxed]) {
-		NSString* appBundleIdentifier = @"com.robtop.geometryjump";
+		NSString* appBundleIdentifier = [Utils gdBundleIdentifier];
 		[[LSApplicationWorkspace defaultWorkspace] openApplicationWithBundleID:appBundleIdentifier];
 		return YES;
 	}

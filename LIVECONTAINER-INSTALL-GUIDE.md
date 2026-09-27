@@ -38,6 +38,12 @@ This tutorial is for people that use LiveContainer to bypass Apple's 3 active ap
 - After your device restarts, you will be prompted to "Turn on Developer Mode", press "Turn On", and **Developer Mode** should be enabled!
 
 ## Setup LiveContainer
+### Geometry Dash installed with a different Bundle ID
+
+Before pressing **Verify Geometry Dash**, open Geode's **Settings → General → Geometry Dash Bundle ID** and enter the installed app's exact Bundle ID, such as `com.gd.test`. Press **OK** to save it. Clearing the field restores `com.robtop.geometryjump`; changing it clears the previous verification result.
+
+This selects the external app that Geode opens for verification. Geode still uses its own downloaded/imported game copy inside LiveContainer; this setting does not load mods into the separate SideStore app. If verification fails, check the final Bundle ID assigned to the installed app during signing.
+
 ![](https://livecontainer.github.io/img/lc_sidestore/4.jpg)
 ![](https://livecontainer.github.io/img/lc_sidestore/5.jpg)
 ![](https://livecontainer.github.io/img/lc_sidestore/6.jpg)
