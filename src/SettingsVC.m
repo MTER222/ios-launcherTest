@@ -352,6 +352,27 @@ extern NSString *g_commitHash;
 
 #pragma mark - Table View Delegate
 
+- (void)importGeometryDashIPA {
+	// Import IPA
+	_isImportIPA = true;
+	UTType* type = [UTType typeWithIdentifier:@"com.apple.itunes.ipa"];
+	if (!type) {
+		type = [UTType typeWithFilenameExtension:@"ipa"];
+	}
+	if (!type) {
+		type = [UTType typeWithIdentifier:@"public.data"];
+	}
+	if (!type) {
+		// what is going on apple
+		AppLog(@"Couldn't find any valid UTType. Not opening to prevent crashing.");
+		return;
+	}
+	UIDocumentPickerViewController* picker = [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[ type ] asCopy:YES];
+	picker.delegate = self;
+	picker.allowsMultipleSelection = NO;
+	[self presentViewController:picker animated:YES completion:nil];
+}
+
 - (void)editGDBundleIdentifier {
 	UIAlertController* alert = [UIAlertController alertControllerWithTitle:@"general.gd-bundle-id".loc message:@"general.gd-bundle-id.message".loc preferredStyle:UIAlertControllerStyleAlert];
 	[alert addTextFieldWithConfigurationHandler:^(UITextField* field) {
@@ -380,6 +401,11 @@ extern NSString *g_commitHash;
 	NSFileManager* fm = [NSFileManager defaultManager];
 	NSURL* bundlePath = [[LCPath bundlePath] URLByAppendingPathComponent:[Utils gdBundleName]];
 	NSArray<Setting*>* general = @[
+		[Setting create:@"general.import-gd-ipa".loc type:SettingTypeButtonWithIcon disabled:nil visible:^BOOL(){
+			return [Utils isSandboxed];
+		} prefsKey:nil switchTag:0 action:^{
+			[self importGeometryDashIPA];
+		} custom:nil],
 		[Setting simpleCreate:@"general.gd-bundle-id".loc type:SettingTypeCustomVal1 action:^{
 			[self editGDBundleIdentifier];
 		} custom:^(UITableViewCell* cell) {
@@ -1114,24 +1140,7 @@ extern NSString *g_commitHash;
 			// }];
 		} custom:nil],
 		[Setting simpleCreate:@"developer.importipa".loc type:SettingTypeButton action:^{
-			// Import IPA
-			_isImportIPA = true;
-			UTType* type = [UTType typeWithIdentifier:@"com.apple.itunes.ipa"];
-			if (!type) {
-				type = [UTType typeWithFilenameExtension:@"ipa"];
-			}
-			if (!type) {
-				type = [UTType typeWithIdentifier:@"public.data"];
-			}
-			if (!type) {
-				// what is going on apple
-				AppLog(@"Couldn't find any valid UTType. Not opening to prevent crashing.");
-				return;
-			}
-			UIDocumentPickerViewController* picker = [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[ type ] asCopy:YES];
-			picker.delegate = self;
-			picker.allowsMultipleSelection = NO;
-			[self presentViewController:picker animated:YES completion:nil];
+			[self importGeometryDashIPA];
 		} custom:nil],
 		[Setting simpleCreate:@"App Reinstall".loc type:SettingTypeButton action:^{
 			// TS App Reinstall

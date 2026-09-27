@@ -44,6 +44,10 @@ Before pressing **Verify Geometry Dash**, open Geode's **Settings → General �
 
 This selects the external app that Geode opens for verification. Geode still uses its own downloaded/imported game copy inside LiveContainer; this setting does not load mods into the separate SideStore app. If verification fails, check the final Bundle ID assigned to the installed app during signing.
 
+### Importing the game in a custom build
+
+Custom builds without the upstream download secrets cannot download Geometry Dash. After verification, use **Settings → General → Import Geometry Dash IPA** and select your game IPA from Files. The importer stores the game at the launcher's expected internal path even when the IPA has a different Bundle ID. Geode Loader is then downloaded separately. Existing LiveContainer JIT or JIT-less setup is still required.
+
 ![](https://livecontainer.github.io/img/lc_sidestore/4.jpg)
 ![](https://livecontainer.github.io/img/lc_sidestore/5.jpg)
 ![](https://livecontainer.github.io/img/lc_sidestore/6.jpg)

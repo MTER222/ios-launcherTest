@@ -1,6 +1,5 @@
 #import "GeodeInstaller.h"
 #import "LCUtils/LCAppInfo.h"
-#import "LCUtils/LCAppModel.h"
 #import "LCUtils/LCUtils.h"
 #import "LCUtils/Shared.h"
 #import "LCUtils/unarchive.h"
@@ -87,7 +86,6 @@ BOOL hasDoneUpdate = NO;
 		[[Utils getPrefs] setBool:NO forKey:@"GDNeedsUpdate"];
 		// https://github.com/khanhduytran0/LiveContainer/blob/d950e0501944282d757bc5c3b60557d8b64e43c9/LiveContainerSwiftUI/LCAppListView.swift#L348
 		NSFileManager* fm = [NSFileManager defaultManager];
-		[fm removeItemAtURL:[[LCPath bundlePath] URLByAppendingPathComponent:[Utils gdBundleName]] error:nil];
 		[fm createDirectoryAtURL:[LCPath bundlePath] withIntermediateDirectories:YES attributes:nil error:nil];
 		NSURL* payloadPath = [[fm temporaryDirectory] URLByAppendingPathComponent:@"Payload"];
 		NSError* error = nil;
@@ -144,32 +142,32 @@ BOOL hasDoneUpdate = NO;
 					break;
 				}
 			}
-			NSURL* appFolderPath = [payloadPath URLByAppendingPathComponent:appBundleName];
-			LCAppInfo* newAppInfo = [[LCAppInfo alloc] initWithBundlePath:appFolderPath.path];
-			NSString* appRelativePath = [NSString stringWithFormat:@"%@.app", [newAppInfo bundleIdentifier]];
-			NSURL* outputFolder = [[LCPath bundlePath] URLByAppendingPathComponent:appRelativePath];
-			LCAppModel* appToReplace = nil;
-			SharedModel* sharedModel = [[SharedModel alloc] init];
-
-			// sorry i really couldnt figure this out
-			NSArray<LCAppModel*>* sameBundleIdApp = [sharedModel.apps filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(LCAppModel* app, NSDictionary* bindings) {
-																		  return [app.appInfo.bundleIdentifier isEqualToString:newAppInfo.bundleIdentifier];
-																	  }]];
-
-			if (sameBundleIdApp.count == 0) {
-				sameBundleIdApp = [sharedModel.hiddenApps filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(LCAppModel* app, NSDictionary* bindings) {
-															  return [app.appInfo.bundleIdentifier isEqualToString:newAppInfo.bundleIdentifier];
-														  }]];
+			if (!appBundleName) {
+				dispatch_async(dispatch_get_main_queue(), ^{
+					[root updateState];
+					[Utils showError:root title:@"The IPA does not contain an application in Payload." error:nil];
+				});
+				return;
 			}
-
-			if ([fm fileExistsAtPath:outputFolder.path] || sameBundleIdApp.count > 0) {
-				// ah yes, c casting
-				appRelativePath = [NSString stringWithFormat:@"%@_%ld.app", [newAppInfo bundleIdentifier], (long)CFAbsoluteTimeGetCurrent()];
-
-				outputFolder = [LCPath.bundlePath URLByAppendingPathComponent:appRelativePath];
-				if (![fm removeItemAtURL:outputFolder error:&error]) {
-					AppLog(@"Error removing item: %@", error);
-				}
+			NSURL* appFolderPath = [payloadPath URLByAppendingPathComponent:appBundleName];
+			NSDictionary* info = [NSDictionary dictionaryWithContentsOfURL:[appFolderPath URLByAppendingPathComponent:@"Info.plist"]];
+			if (![info[@"CFBundleExecutable"] isEqualToString:@"GeometryJump"] ||
+				![fm fileExistsAtPath:[appFolderPath URLByAppendingPathComponent:@"GeometryJump"].path]) {
+				dispatch_async(dispatch_get_main_queue(), ^{
+					[root updateState];
+					[Utils showError:root title:@"Select a Geometry Dash IPA containing the GeometryJump executable." error:nil];
+				});
+				return;
+			}
+			// The launcher uses one internal game directory, regardless of the imported Bundle ID.
+			NSString* appRelativePath = [Utils gdBundleName];
+			NSURL* outputFolder = [[LCPath bundlePath] URLByAppendingPathComponent:appRelativePath];
+			if ([fm fileExistsAtPath:outputFolder.path] && ![fm removeItemAtURL:outputFolder error:&error]) {
+				dispatch_async(dispatch_get_main_queue(), ^{
+					[root updateState];
+					[Utils showError:root title:@"Could not replace the imported game." error:error];
+				});
+				return;
 			}
 			// Move it!
 			[fm moveItemAtURL:appFolderPath toURL:outputFolder error:&error];
@@ -191,6 +189,12 @@ BOOL hasDoneUpdate = NO;
 
 			[finalNewApp patchExecAndSignIfNeedWithCompletionHandler:^(BOOL success, NSString* errorInfo) {
 				dispatch_async(dispatch_get_main_queue(), ^{
+					if (!success) {
+						[root updateState];
+						[Utils showError:root title:errorInfo ?: @"Could not sign the imported game." error:nil];
+						return;
+					}
+					[[Utils getPrefs] setObject:@"NO" forKey:@"PATCH_CHECKSUM"];
 					if (![VerifyInstall verifyGeodeInstalled]) {
 						//[root updateState];
 						root.optionalTextLabel.text = @"launcher.status.download-geode".loc;
@@ -200,23 +204,6 @@ BOOL hasDoneUpdate = NO;
 						[root updateState];
 					}
 				});
-				if (success) {
-					LCAppModel* newAppModel = [[LCAppModel alloc] initWithAppInfo:finalNewApp delegate:nil];
-					if (appToReplace != nil) {
-						finalNewApp.autoSaveDisabled = true;
-						finalNewApp.isShared = appToReplace.appInfo.isShared;
-						finalNewApp.doSymlinkInbox = appToReplace.appInfo.doSymlinkInbox;
-						finalNewApp.dataUUID = appToReplace.appInfo.dataUUID;
-						finalNewApp.autoSaveDisabled = false;
-
-						[sharedModel.apps removeObject:appToReplace];
-						[sharedModel.apps addObject:newAppModel];
-					} else {
-						[sharedModel.apps addObject:newAppModel];
-					}
-				} else {
-					AppLog(@"error with signing: %@", errorInfo);
-				}
 			} progressHandler:^(NSProgress* signProgress) {
 				//[installProgress addChild:signProgress withPendingUnitCount:20];
 			} forceSign:NO blockMainThread:YES];

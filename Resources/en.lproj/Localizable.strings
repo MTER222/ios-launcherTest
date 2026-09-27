@@ -1,3 +1,4 @@
+"general.import-gd-ipa" = "Import Geometry Dash IPA";
 // Common
 "general.gd-bundle-id" = "Geometry Dash Bundle ID";
 "general.gd-bundle-id.message" = "Enter the Bundle ID of your installed Geometry Dash app (for example, com.gd.test). Geode uses this ID to open the app for verification. Leave empty to restore com.robtop.geometryjump. This does not import the external app into LiveContainer.";
@@ -99,7 +100,7 @@
 "launcher.status.patching" = "Patching...";
 "launcher.status.signing" = "Signing...";
 
-"launcher.error.non" = "Please use the release from the original github page to download Geometry Dash.";
+"launcher.error.non" = "Automatic game download is unavailable in this custom build. Open Settings > Import Geometry Dash IPA and select your game IPA.";
 "launcher.error.gd" = "Geode couldn't load Geometry Dash: %@";
 "launcher.error.app-uri" = "Couldn't open any app urls. Please ensure you have selected the right JIT Enabler, then restart the launcher.";
 "launcher.error.download-fail-restart" = "Download failed, please restart the app";
