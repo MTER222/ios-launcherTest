@@ -121,22 +121,39 @@ Class LCSharedUtilsClass = nil;
 	}
 }
 
-+ (NSProgress*)signAppBundleWithZSign:(NSURL*)path completionHandler:(void (^)(BOOL success, NSError* error))completionHandler {
-	NSError* error;
-
-	// use zsign as our signer~
-	NSURL* profilePath = [gcMainBundle URLForResource:@"embedded" withExtension:@"mobileprovision"];
-	NSData* profileData = [NSData dataWithContentsOfURL:profilePath];
-	if (profileData == nil) {
-		AppLog(@"Couldn't read from mobile provisioning profile! Will assume to use embedded mobile provisioning file in documents.");
-		if (NSClassFromString(@"LCSharedUtils")) {
-			profilePath = [[LCPath realLCDocPath] URLByAppendingPathComponent:@"embedded.mobileprovision"];
-			profileData = [NSData dataWithContentsOfURL:profilePath options:0 error:&error];
-		} else {
-			profilePath = [[LCPath docPath] URLByAppendingPathComponent:@"embedded.mobileprovision"];
-			profileData = [NSData dataWithContentsOfURL:profilePath options:0 error:&error];
+// Resolve the host profile as well as profiles exported by older LiveContainer versions.
++ (NSData*)signingProfileDataWithError:(NSError**)error {
+	NSMutableArray<NSURL*>* candidates = [NSMutableArray array];
+	NSURL* ownProfile = [gcMainBundle URLForResource:@"embedded" withExtension:@"mobileprovision"];
+	if (ownProfile) [candidates addObject:ownProfile];
+	if (NSClassFromString(@"LCSharedUtils")) {
+		[candidates addObject:[[LCPath realLCDocPath] URLByAppendingPathComponent:@"embedded.mobileprovision"]];
+	}
+	[candidates addObject:[[LCPath docPath] URLByAppendingPathComponent:@"embedded.mobileprovision"]];
+	SEL hostBundleSelector = NSSelectorFromString(@"lcMainBundle");
+	if ([NSUserDefaults respondsToSelector:hostBundleSelector]) {
+		NSBundle* hostBundle = [NSUserDefaults performSelector:hostBundleSelector];
+		if ([hostBundle isKindOfClass:[NSBundle class]]) {
+			NSURL* hostProfile = [hostBundle URLForResource:@"embedded" withExtension:@"mobileprovision"];
+			if (hostProfile) [candidates addObject:hostProfile];
 		}
 	}
+	for (NSURL* candidate in candidates) {
+		NSData* data = [NSData dataWithContentsOfURL:candidate];
+		if (data.length) return data;
+	}
+	if (error) {
+		*error = [NSError errorWithDomain:@"GeodeSigning" code:1 userInfo:@{
+			NSLocalizedDescriptionKey: @"No signing profile was found. For JIT-Less, export the signing certificate and profile from LiveContainer. For StikDebug/JIT, turn off Enable JIT-Less and Force Certificate JIT in Geode settings, then import the game again."
+		}];
+	}
+	return nil;
+}
+
++ (NSProgress*)signAppBundleWithZSign:(NSURL*)path completionHandler:(void (^)(BOOL success, NSError* error))completionHandler {
+	NSError* error = nil;
+
+	NSData* profileData = [self signingProfileDataWithError:&error];
 
 	if (profileData == nil) {
 		completionHandler(NO, error);
@@ -151,30 +168,11 @@ Class LCSharedUtilsClass = nil;
 		return nil;
 	}
 
-	NSFileManager* fm = [NSFileManager defaultManager];
-	NSURL* justIncase = [[LCPath bundlePath] URLByAppendingPathComponent:@"com.robtop.geometryjump.app"];
-	NSURL* bundleProvision = [[LCPath bundlePath] URLByAppendingPathComponent:@"com.robtop.geometryjump.app/embedded.mobileprovision"];
-	NSURL* provisionURL = [[LCPath docPath] URLByAppendingPathComponent:@"embedded.mobileprovision"];
-	if ([[NSFileManager defaultManager] fileExistsAtPath:provisionURL.path]) {
-		AppLog(@"Found provision in documents, copying to GD bundle...");
-		if ([[NSFileManager defaultManager] fileExistsAtPath:bundleProvision.path]) {
-			[[NSFileManager defaultManager] removeItemAtURL:bundleProvision error:&error];
-			if (error) {
-				completionHandler(NO, error);
-				return nil;
-			}
-		}
-		BOOL isDir = NO;
-		if ([[NSFileManager defaultManager] fileExistsAtPath:justIncase.path isDirectory:&isDir]) {
-			if (isDir) {
-				[fm copyItemAtURL:provisionURL toURL:bundleProvision error:&error];
-				if (error) {
-					completionHandler(NO, error);
-					return nil;
-				}
-				AppLog(@"Copied provision to GD bundle.");
-			}
-		}
+	// Use the same resolved profile for the actual signing target (game, mod or test app).
+	NSURL* bundleProvision = [path URLByAppendingPathComponent:@"embedded.mobileprovision"];
+	if (![profileData writeToURL:bundleProvision options:NSDataWritingAtomic error:&error]) {
+		completionHandler(NO, error);
+		return nil;
 	}
 	AppLog(@"starting signing...");
 
@@ -185,15 +183,9 @@ Class LCSharedUtilsClass = nil;
 }
 
 + (NSString*)getCertTeamIdWithKeyData:(NSData*)keyData password:(NSString*)password {
-	NSError* error;
+	NSError* error = nil;
 
-	NSURL* profilePath = [gcMainBundle URLForResource:@"embedded" withExtension:@"mobileprovision"];
-	NSData* profileData = [NSData dataWithContentsOfURL:profilePath];
-	if (profileData == nil) {
-		AppLog(@"Couldn't read from mobile provisioning profile! Will assume to use embedded mobile provisioning file in documents.");
-		profilePath = [[LCPath docPath] URLByAppendingPathComponent:@"embedded.mobileprovision"];
-		profileData = [NSData dataWithContentsOfURL:profilePath];
-	}
+	NSData* profileData = [self signingProfileDataWithError:&error];
 
 	if (profileData == nil) {
 		AppLog(@"Profile still couldn't be read. Assuming we don't have it...");
@@ -212,21 +204,8 @@ Class LCSharedUtilsClass = nil;
 }
 
 + (int)validateCertificate:(void (^)(int status, NSDate* expirationDate, NSString* error))completionHandler {
-	NSError* error;
-	NSURL* profilePath = [gcMainBundle URLForResource:@"embedded" withExtension:@"mobileprovision"];
-	if (!profilePath) {
-		if (NSClassFromString(@"LCSharedUtils")) {
-			profilePath = [[LCPath realLCDocPath] URLByAppendingPathComponent:@"embedded.mobileprovision"];
-		} else {
-			profilePath = [[LCPath docPath] URLByAppendingPathComponent:@"embedded.mobileprovision"];
-		}
-	}
-	if (!profilePath) {
-		int ans = 0;
-		completionHandler(2, nil, @"Error loading cert or issuer");
-		return ans;
-	}
-	NSData* profileData = [NSData dataWithContentsOfURL:profilePath options:0 error:&error];
+	NSError* error = nil;
+	NSData* profileData = [self signingProfileDataWithError:&error];
 	NSData* certData = [LCUtils certificateData];
 	if (error) {
 		AppLog(@"profileData error: %@", error);
@@ -234,6 +213,10 @@ Class LCSharedUtilsClass = nil;
 		return -6;
 	}
 	[self loadStoreFrameworksWithError2:&error];
+	if (error) {
+		completionHandler(-6, nil, error.localizedDescription);
+		return -6;
+	}
 	int ans = [NSClassFromString(@"ZSigner") checkCertWithProv:profileData key:certData pass:[LCUtils certificatePassword] ocsp:![[Utils getPrefs] boolForKey:@"JITLESS_OCSP"]
 											 completionHandler:completionHandler];
 	return ans;
@@ -494,7 +477,7 @@ Class LCSharedUtilsClass = nil;
 
 + (BOOL)modifiedAtDifferent:(NSString*)datePath geodePath:(NSString*)geodePath {
 	NSFileManager* fm = [NSFileManager defaultManager];
-	NSError* error;
+	NSError* error = nil;
 	NSString* currentHash = [NSString stringWithContentsOfFile:datePath encoding:NSUTF8StringEncoding error:&error];
 	if (!currentHash)
 		return NO;

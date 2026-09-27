@@ -131,6 +131,8 @@
 - (void)patchExecAndSignIfNeedWithCompletionHandler:(void (^)(bool success, NSString* errorInfo))completetionHandler
 									progressHandler:(void (^)(NSProgress* progress))progressHandler
 										  forceSign:(BOOL)forceSign blockMainThread:(BOOL)blockMainThread {
+	BOOL needsCertificateSigning = forceSign || [[Utils getPrefs] boolForKey:@"JITLESS"] ||
+		[[Utils getPrefs] boolForKey:@"FORCE_CERT_JIT"] || [[Utils getPrefs] boolForKey:@"ENTERPRISE_MODE"];
 	NSString* appPath = self.bundlePath;
 	NSString* infoPath = [NSString stringWithFormat:@"%@/Info.plist", appPath];
 	NSMutableDictionary* info = _info;
@@ -184,8 +186,13 @@
 			}
 		}
 	}
-	if (!LCUtils.certificatePassword) {
+	// Patching is still required for JIT, but certificate signing is not.
+	if (!needsCertificateSigning) {
 		completetionHandler(YES, nil);
+		return;
+	}
+	if (!LCUtils.certificatePassword) {
+		completetionHandler(NO, @"Certificate signing is enabled, but no certificate password is available. Export the certificate from LiveContainer or use JIT mode.");
 		return;
 	}
 
